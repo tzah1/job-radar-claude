@@ -1,5 +1,24 @@
 # Operating Manual — Job Radar v1
 
+## TODO: Local Python virtual environment
+
+**Current status:**
+Homebrew Python 3.14 has a broken pip/ensurepip (native library symbol mismatch).
+Homebrew Python 3.12 has working pip, but `python3.12 -m venv` also fails ensurepip during bootstrapping.
+All Python scripts pass `py_compile` syntax checks with Python 3.12. Infrastructure is valid.
+
+**Decision:** Do not use `curl/get-pip.py` and do not install packages globally for now.
+
+**Next options (choose one when ready):**
+1. `brew reinstall python@3.12` — cleanest fix for the Homebrew build
+2. Use [`uv`](https://github.com/astral-sh/uv) — fast, self-contained Python env manager, no pip dependency
+3. Use a Docker-based development path for full isolation
+4. Keep infrastructure validation separate from Python environment troubleshooting
+
+**Impact on current workflow:**
+Scripts cannot be executed until a working venv is available.
+All file infrastructure, config, docs, and CSV schemas are fully usable now.
+
 ## Contents
 1. [First-time setup](#1-first-time-setup)
 2. [Edit target companies](#2-edit-target-companies)
