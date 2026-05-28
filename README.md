@@ -22,24 +22,49 @@ A lean local file-based system to track target companies and surface relevant jo
 
 ## Quick start
 
+> **Runtime note:** Homebrew/global Python is currently broken on this machine (`pyexpat`/`libexpat` mismatch). Use `uv` as shown below. Do not use plain `python3`, `pip3`, or `uv run` without `--python venv/bin/python3`.
+
+**One-time setup:**
 ```bash
 cd ~/AI-Work/projects/job-radar-claude
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
 
-# Populate career URLs
-python scripts/find_career_urls.py
+# Install uv (once, via Homebrew)
+brew install uv
 
-# Run a scan (dry-run first)
+# Create venv using uv with Python 3.12
+uv venv --python python3.12 venv
+
+# Install dependencies into the venv
+uv pip install --python venv/bin/python3 -r requirements.txt
+```
+
+**Run commands (preferred — no activation needed):**
+```bash
+uv run --python venv/bin/python3 python scripts/run_daily_scan.py --dry-run
+uv run --python venv/bin/python3 python scripts/run_daily_scan.py
+uv run --python venv/bin/python3 python scripts/find_career_urls.py
+uv run --python venv/bin/python3 python scripts/prepare_approved_jobs.py
+```
+
+**Alternative — activate venv first:**
+```bash
+source venv/bin/activate
 python scripts/run_daily_scan.py --dry-run
 python scripts/run_daily_scan.py
+# deactivate when done
+deactivate
+```
+
+**Other first steps:**
+```bash
+# Copy and review environment variables (optional for v1)
+cp .env.example .env
 
 # Review exports/jobs_for_review.csv
 # Mark approved_for_cv=yes on roles you want to pursue
-
-# Prepare approved jobs
-python scripts/prepare_approved_jobs.py
 ```
+
+**TODO (separate task):** Fix global/Homebrew Python on this machine so plain `python3` and `pip3` work. Until then, always use `uv` as above.
 
 ## Folder structure
 

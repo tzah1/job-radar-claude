@@ -1,23 +1,40 @@
 # Operating Manual — Job Radar v1
 
-## TODO: Local Python virtual environment
+## Python Runtime — Working Setup
 
-**Current status:**
-Homebrew Python 3.14 has a broken pip/ensurepip (native library symbol mismatch).
-Homebrew Python 3.12 has working pip, but `python3.12 -m venv` also fails ensurepip during bootstrapping.
-All Python scripts pass `py_compile` syntax checks with Python 3.12. Infrastructure is valid.
+**Status: resolved.** Runtime works via `uv` with its own managed CPython 3.12.13.
 
-**Decision:** Do not use `curl/get-pip.py` and do not install packages globally for now.
+### Why uv instead of plain python3/pip
+Homebrew Python 3.12 and 3.14 both have a broken `pyexpat`/`libexpat` symbol mismatch that crashes pip during any install operation. `uv` bypasses this entirely by using its own downloaded CPython build.
 
-**Next options (choose one when ready):**
-1. `brew reinstall python@3.12` — cleanest fix for the Homebrew build
-2. Use [`uv`](https://github.com/astral-sh/uv) — fast, self-contained Python env manager, no pip dependency
-3. Use a Docker-based development path for full isolation
-4. Keep infrastructure validation separate from Python environment troubleshooting
+> **Important:** Do not use plain `python3`, `pip3`, or bare `uv run` on this machine. Always use the explicit `--python venv/bin/python3` flag until global Python is repaired.
 
-**Impact on current workflow:**
-Scripts cannot be executed until a working venv is available.
-All file infrastructure, config, docs, and CSV schemas are fully usable now.
+### One-time setup (already done — for reference)
+```bash
+brew install uv
+uv venv --python python3.12 venv
+uv pip install --python venv/bin/python3 -r requirements.txt
+```
+
+### Verified working run command
+```bash
+uv run --python venv/bin/python3 python scripts/run_daily_scan.py --dry-run
+```
+
+### Alternative after activating venv
+```bash
+source venv/bin/activate
+python scripts/run_daily_scan.py --dry-run
+deactivate
+```
+
+### TODO: Global Python repair (separate future task)
+Homebrew Python is broken due to a `libexpat` version mismatch (`_XML_SetAllocTrackerActivationThreshold` missing from `/usr/lib/libexpat.1.dylib`). Fix options when ready:
+1. `brew reinstall python@3.12` — likely fixes the build linkage
+2. `brew reinstall expat` followed by `brew reinstall python@3.12`
+3. macOS system update may resolve the underlying library version gap
+
+Do not attempt this repair during active job-radar work sessions.
 
 ## Git Rules
 
@@ -52,16 +69,20 @@ All file infrastructure, config, docs, and CSV schemas are fully usable now.
 ```bash
 cd ~/AI-Work/projects/job-radar-claude
 
-# Create a virtual environment (recommended)
-python3 -m venv venv
-source venv/bin/activate
+# Install uv (once, if not already installed)
+brew install uv
+
+# Create venv using uv's managed Python 3.12
+uv venv --python python3.12 venv
 
 # Install dependencies
-pip install -r requirements.txt
+uv pip install --python venv/bin/python3 -r requirements.txt
 
 # Copy and review environment variables (optional for v1)
 cp .env.example .env
 ```
+
+> Note: Do not use `python3 -m venv` or `pip install` directly — global Python is broken on this machine. See the **Python Runtime** section above.
 
 ---
 
@@ -99,18 +120,20 @@ companies listed under "Needs manual career URL entry".
 
 ## 4. Run the daily scan manually
 
+**Preferred (no activation needed):**
 ```bash
-# Activate venv first if using one:
+uv run --python venv/bin/python3 python scripts/run_daily_scan.py --dry-run
+uv run --python venv/bin/python3 python scripts/run_daily_scan.py
+uv run --python venv/bin/python3 python scripts/run_daily_scan.py --company "Wiz"
+```
+
+**Alternative (activate venv first):**
+```bash
 source venv/bin/activate
-
-# Full scan:
-python scripts/run_daily_scan.py
-
-# Dry run (no files written):
 python scripts/run_daily_scan.py --dry-run
-
-# Single company:
+python scripts/run_daily_scan.py
 python scripts/run_daily_scan.py --company "Wiz"
+deactivate
 ```
 
 **Outputs:**
@@ -187,10 +210,10 @@ After marking approvals:
 
 ```bash
 # Preview what will be prepared:
-python scripts/prepare_approved_jobs.py --dry-run
+uv run --python venv/bin/python3 python scripts/prepare_approved_jobs.py --dry-run
 
 # Run for real:
-python scripts/prepare_approved_jobs.py
+uv run --python venv/bin/python3 python scripts/prepare_approved_jobs.py
 ```
 
 **Output per approved job:**
