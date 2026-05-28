@@ -19,6 +19,19 @@ All Python scripts pass `py_compile` syntax checks with Python 3.12. Infrastruct
 Scripts cannot be executed until a working venv is available.
 All file infrastructure, config, docs, and CSV schemas are fully usable now.
 
+## Git Rules
+
+- **Do not create commits automatically.**
+- Do not run `git commit` unless explicitly instructed by the user.
+- You may run `git status`, `git diff`, and `git log` freely for review.
+- After any file changes, Claude should show:
+  - `git status --short`
+  - Summary of changed files
+  - What checks were performed
+- The user decides when to commit after manual review.
+
+---
+
 ## Contents
 1. [First-time setup](#1-first-time-setup)
 2. [Edit target companies](#2-edit-target-companies)
@@ -37,7 +50,7 @@ All file infrastructure, config, docs, and CSV schemas are fully usable now.
 ## 1. First-time setup
 
 ```bash
-cd ~/Projects/job-radar-claude
+cd ~/AI-Work/projects/job-radar-claude
 
 # Create a virtual environment (recommended)
 python3 -m venv venv

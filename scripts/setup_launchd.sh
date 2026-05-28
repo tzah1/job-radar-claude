@@ -21,7 +21,7 @@ set -euo pipefail
 # ── Configuration ────────────────────────────────────────────────────────────
 PLIST_LABEL="com.jobradar.dailyscan"
 PLIST_PATH="$HOME/Library/LaunchAgents/${PLIST_LABEL}.plist"
-PROJECT_DIR="$HOME/Projects/job-radar-claude"
+PROJECT_DIR="$HOME/AI-Work/projects/job-radar-claude"
 PYTHON_BIN="$(which python3)"
 SCRIPT_PATH="${PROJECT_DIR}/scripts/run_daily_scan.py"
 LOG_STDOUT="${PROJECT_DIR}/logs/launchd_stdout.log"

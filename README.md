@@ -23,7 +23,7 @@ A lean local file-based system to track target companies and surface relevant jo
 ## Quick start
 
 ```bash
-cd ~/Projects/job-radar-claude
+cd ~/AI-Work/projects/job-radar-claude
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 

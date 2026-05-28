@@ -80,6 +80,20 @@ Only ask a question when you cannot proceed without an answer.
 
 ---
 
+## Git Rules
+
+- **Do not create commits automatically.**
+- Do not run `git commit` unless explicitly instructed by the user.
+- You may initialize a git repo if needed (`git init`).
+- You may freely run `git status`, `git diff`, and `git log` for review.
+- After making any file changes, always show:
+  - `git status --short`
+  - A summary of what files were changed and why
+  - What checks or tests were performed
+- The user decides when to commit after manual review.
+
+---
+
 ## When in doubt
 - Prefer doing less over doing more
 - Prefer a TODO over guessing at a requirement
