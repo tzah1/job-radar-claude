@@ -1,111 +1,84 @@
 # Job Radar
 
-A lean local file-based system to track target companies and surface relevant job openings for manual review.
+A lean local system that scans target company career pages, scores relevant job
+openings automatically, and exports them to a review file for manual approval before
+any CV work begins.
+
+---
 
 ## What it does
 
-1. Reads target companies from `config/target_companies.csv`
-2. Fetches career pages (where possible)
-3. Parses job listings into structured records
-4. Scores jobs 1–10 using keyword-based rules (no LLM required for daily scans)
-5. Exports `exports/jobs_for_review.csv` and `exports/jobs_for_review.md` for manual review
-6. Waits for manual approval (`approved_for_cv=yes` column)
-7. Prepares approved jobs for the existing CV-tailoring workflow
+1. Reads 21 target companies from `config/target_companies.csv`
+2. Fetches career pages for all companies that have a `career_url`
+3. Detects the ATS (Greenhouse, Lever, Ashby, Comeet) and calls its public API where available
+4. Falls back to generic HTML link extraction for unknown ATS platforms
+5. Parses manually added job entries from `data/raw/manual/*.json`
+6. Scores every job 1–10 using keyword-based rules — no LLM required
+7. Exports `exports/jobs_for_review.csv` and `exports/jobs_for_review.md`
+8. Waits for manual approval (`approved_for_cv=yes`) before doing anything else
+9. Prepares an approved job package for the CV-tailoring workflow
 
 ## What it never does
 
 - Send applications
-- Contact mentors or write messages
-- Tailor CVs without explicit approval
-- Invent or embellish experience
-- Activate scheduled tasks automatically
+- Contact recruiters or mentors
+- Draft mentor messages
+- Tailor CVs without an explicit `approved_for_cv=yes` row
+- Invent, embellish, or imply experience
+- Activate the daily scheduler automatically
+- Commit files automatically (Claude must not commit without explicit instruction)
+
+---
+
+## Runtime note — use `uv`, not plain `python3`
+
+Homebrew Python is broken on this machine (`pyexpat`/`libexpat` mismatch).
+Always use `uv` as shown below. Never use plain `python3`, `pip3`, or bare `uv run`.
+
+---
 
 ## Quick start
 
-> **Runtime note:** Homebrew/global Python is currently broken on this machine (`pyexpat`/`libexpat` mismatch). Use `uv` as shown below. Do not use plain `python3`, `pip3`, or `uv run` without `--python venv/bin/python3`.
-
-**One-time setup:**
 ```bash
 cd ~/AI-Work/projects/job-radar-claude
 
-# Install uv (once, via Homebrew)
+# One-time setup (already done — for reference)
 brew install uv
-
-# Create venv using uv with Python 3.12
 uv venv --python python3.12 venv
-
-# Install dependencies into the venv
 uv pip install --python venv/bin/python3 -r requirements.txt
 ```
 
-**Run commands (preferred — no activation needed):**
+---
+
+## Daily scan commands
+
 ```bash
+# Dry run — no files written, validates the pipeline
 uv run --python venv/bin/python3 python scripts/run_daily_scan.py --dry-run
+
+# Real run — fetches pages, parses jobs, writes exports/
 uv run --python venv/bin/python3 python scripts/run_daily_scan.py
-uv run --python venv/bin/python3 python scripts/find_career_urls.py
-uv run --python venv/bin/python3 python scripts/prepare_approved_jobs.py
+
+# Limit to a single company
+uv run --python venv/bin/python3 python scripts/run_daily_scan.py --company "Wiz"
 ```
 
-**Alternative — activate venv first:**
-```bash
-source venv/bin/activate
-python scripts/run_daily_scan.py --dry-run
-python scripts/run_daily_scan.py
-# deactivate when done
-deactivate
-```
+---
 
-**Other first steps:**
-```bash
-# Copy and review environment variables (optional for v1)
-cp .env.example .env
+## Manual web scan workflow
 
-# Review exports/jobs_for_review.csv
-# Mark approved_for_cv=yes on roles you want to pursue
-```
+When auto-discovery fails or you find a job manually on a career site:
 
-**TODO (separate task):** Fix global/Homebrew Python on this machine so plain `python3` and `pip3` work. Until then, always use `uv` as above.
+**1. Open the career URL from `config/target_companies.csv`.**
 
-## Folder structure
+**2. Search for roles such as:**
+- Data Engineer, Analytics Engineer, Data Analyst
+- AI Operations, Data Operations, AI Engineer
+- Security Data, Big Data, Solutions/Data roles
 
-```
-job-radar-claude/
-├── config/
-│   ├── target_companies.csv      ← edit to add/remove companies
-│   ├── profile_context.md        ← your skills and positioning
-│   ├── scoring_rules.md          ← how fit scores are calculated
-│   ├── location_rules.md         ← geographic preferences
-│   ├── workflow_rules.md         ← system rules and manual gates
-│   └── cv_workflow_integration.md← how to call your CV workflow
-├── data/
-│   ├── raw/manual/               ← drop manual job JSON files here
-│   ├── parsed/                   ← intermediate parsed JSON
-│   ├── seen_jobs.csv             ← deduplication tracking
-│   ├── rejected_jobs.csv         ← rejected job log
-│   └── approved_jobs.csv         ← approved job log
-├── exports/
-│   ├── jobs_for_review.csv       ← REVIEW THIS daily
-│   ├── jobs_for_review.md        ← formatted view
-│   └── daily_summary.md          ← scan summary
-├── scripts/
-│   ├── run_daily_scan.py         ← main orchestrator
-│   ├── find_career_urls.py       ← populate missing URLs
-│   ├── fetch_jobs.py             ← HTTP fetch career pages
-│   ├── parse_jobs.py             ← parse HTML + manual JSON
-│   ├── score_jobs.py             ← keyword-based scoring
-│   ├── export_review_csv.py      ← write review CSV + Markdown
-│   ├── prepare_approved_jobs.py  ← package approved jobs
-│   └── setup_launchd.sh          ← macOS scheduler setup (manual activation)
-└── docs/
-    ├── operating_manual.md
-    ├── source_characterization.md
-    ├── telegram_integration_plan.md
-    └── google_sheets_future_integration.md
-```
+**3. If relevant, create a JSON file under `data/raw/manual/`:**
 
-## Manual job entries
-
-When a career page cannot be scraped, add a JSON file to `data/raw/manual/`:
+Filename example: `wiz_data_engineer_20260528.json`
 
 ```json
 [
@@ -113,37 +86,167 @@ When a career page cannot be scraped, add a JSON file to `data/raw/manual/`:
     "company_name": "Wiz",
     "role_title": "Data Engineer",
     "location": "Tel Aviv",
-    "work_model": "hybrid",
+    "work_model": "Hybrid",
     "job_url": "https://www.wiz.io/careers/...",
-    "description": "Full job description text here..."
+    "description": "Paste the full job description here.",
+    "notes": "Manual capture from wiz.io/careers"
   }
 ]
 ```
 
-Name the file anything (e.g., `wiz_20260101.json`). It will be picked up on the next scan.
+**4. Run the daily scan:**
+```bash
+uv run --python venv/bin/python3 python scripts/run_daily_scan.py
+```
+
+**5. Review output:**
+```bash
+open exports/jobs_for_review.csv   # in Numbers or Excel
+# or
+cat exports/jobs_for_review.md
+```
+
+**6. Mark roles you want to pursue:**
+In `exports/jobs_for_review.csv`, set `approved_for_cv=yes` for the row.
+
+**7. Prepare the approved CV package:**
+```bash
+uv run --python venv/bin/python3 python scripts/prepare_approved_jobs.py
+```
+This creates `data/approved_jobs/<company>_<role>_<date>/` with job description,
+fit analysis, and CV tailoring input ready for the CV workflow.
+
+---
+
+## Test the manual workflow
+
+Validates the full parse → score → export chain without touching real job data:
+
+```bash
+uv run --python venv/bin/python3 python scripts/test_manual_workflow.py
+```
+
+Creates a temporary job, runs the pipeline, checks it would appear in review, then
+removes all temporary files. Exit code 0 = pass.
+
+---
+
+## Scheduler (macOS launchd)
+
+```bash
+# Generate the plist — does NOT activate the scheduler
+bash scripts/setup_launchd.sh
+
+# Edit the run time if needed
+open ~/Library/LaunchAgents/com.jobradar.dailyscan.plist
+
+# Activate manually when ready
+launchctl load ~/Library/LaunchAgents/com.jobradar.dailyscan.plist
+
+# Check status
+launchctl list | grep jobradar
+
+# Deactivate
+launchctl unload ~/Library/LaunchAgents/com.jobradar.dailyscan.plist
+```
+
+Logs are written to:
+- `logs/daily_scan.log` — main scan log (written by the script)
+- `logs/launchd_stdout.log` — stdout captured by launchd
+- `logs/launchd_stderr.log` — stderr captured by launchd
+
+---
+
+## Runtime outputs — git-ignored
+
+These files are generated by every scan and are excluded from git:
+
+```
+exports/jobs_for_review.csv
+exports/jobs_for_review.md
+exports/daily_summary.md
+data/seen_jobs.csv
+data/rejected_jobs.csv
+data/raw/*/            (fetched HTML)
+data/parsed/           (intermediate JSON)
+```
+
+They live on disk and are regenerated on every run. Do not commit them.
+
+---
+
+## Folder structure
+
+```
+job-radar-claude/
+├── config/
+│   ├── target_companies.csv      ← 21 companies — edit to add/remove
+│   ├── profile_context.md        ← your skills and positioning
+│   ├── scoring_rules.md          ← how fit scores are calculated
+│   ├── location_rules.md         ← geographic preferences
+│   ├── workflow_rules.md         ← system rules and manual gates
+│   └── cv_workflow_integration.md← how to call your CV workflow
+├── data/
+│   ├── raw/manual/               ← drop manual job JSON files here
+│   ├── raw/<company>/            ← fetched HTML (git-ignored)
+│   ├── parsed/                   ← intermediate parsed JSON (git-ignored)
+│   ├── seen_jobs.csv             ← deduplication tracking (git-ignored)
+│   ├── rejected_jobs.csv         ← rejected job log (git-ignored)
+│   └── approved_jobs/            ← prepared CV packages
+├── exports/                      ← all git-ignored (runtime outputs)
+│   ├── jobs_for_review.csv       ← REVIEW THIS — mark approved_for_cv=yes
+│   ├── jobs_for_review.md        ← formatted view
+│   └── daily_summary.md          ← scan summary + career page checklist
+├── scripts/
+│   ├── run_daily_scan.py         ← main orchestrator
+│   ├── fetch_jobs.py             ← HTTP fetch layer
+│   ├── parse_jobs.py             ← ATS detection + HTML/API parsing
+│   ├── score_jobs.py             ← keyword-based scoring
+│   ├── export_review_csv.py      ← write review CSV + Markdown
+│   ├── prepare_approved_jobs.py  ← package approved jobs for CV workflow
+│   ├── test_manual_workflow.py   ← end-to-end pipeline test (no network)
+│   ├── find_career_urls.py       ← populate missing career URLs
+│   └── setup_launchd.sh          ← macOS scheduler setup (manual activation)
+├── docs/
+│   ├── operating_manual.md
+│   ├── source_characterization.md
+│   ├── telegram_integration_plan.md
+│   └── google_sheets_future_integration.md
+└── logs/                         ← git-ignored
+```
+
+---
 
 ## Dependencies
 
 | Package | Why |
 |---------|-----|
-| `requests` | HTTP fetching of career pages — stdlib urllib lacks reliable redirect/cookie handling |
-| `beautifulsoup4` | HTML parsing of job listing pages — stdlib html.parser has no selector API |
-| `python-dotenv` | Load optional config from `.env` — avoids hardcoding paths or tokens |
+| `requests` | HTTP fetching of career pages and ATS APIs |
+| `beautifulsoup4` | HTML parsing of job listing pages |
+| `python-dotenv` | Load optional config from `.env` |
 
 All other logic uses Python standard library.
 
-## Scheduling
+---
 
-To set up automatic daily runs:
-```bash
-bash scripts/setup_launchd.sh
-# Then review the plist and manually activate with launchctl load
-```
+## ATS support (v1)
 
-See `docs/operating_manual.md` section 5 for full instructions.
+| Platform | Method | Status |
+|----------|--------|--------|
+| Greenhouse | Public JSON API | ✅ Working |
+| Comeet | Embedded JSON in HTML | ✅ Working |
+| Lever | Public JSON API | ✅ Implemented — needs slug confirmed |
+| Ashby | Public JSON API | ✅ Implemented — needs slug confirmed |
+| Workday | JS-rendered | ⚠️ Needs characterization |
+| Others | Generic HTML extraction | ⚠️ Low yield |
+
+See `docs/source_characterization.md` for per-company status and the plan for adding
+more adapters one at a time.
+
+---
 
 ## Future
 
-- Per-company HTML/API parsers (see `docs/source_characterization.md`)
-- Telegram notifications (see `docs/telegram_integration_plan.md`)
-- Google Sheets sync (see `docs/google_sheets_future_integration.md`)
+- Resolve missing Greenhouse slugs (Eleos Health, Mixtiles, Oasis)
+- Telegram notifications (`docs/telegram_integration_plan.md`)
+- Google Sheets sync (`docs/google_sheets_future_integration.md`)

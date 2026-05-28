@@ -70,12 +70,55 @@ def load_companies(company_filter: str | None = None) -> list:
     return rows
 
 
+def update_source_characterization(parse_stats: dict, dry_run: bool) -> None:
+    """Append / replace a 'Last Scan Results' table in docs/source_characterization.md."""
+    sc_file = BASE_DIR / "docs" / "source_characterization.md"
+    if not sc_file.exists():
+        return
+
+    content = sc_file.read_text(encoding="utf-8")
+
+    # Remove any existing auto-generated section (handles ---\n## and ---\n\n## variants)
+    import re as _re
+    m = _re.search(r'\n---\n\n?## Last Scan Results', content)
+    if m:
+        content = content[:m.start()]
+
+    today = datetime.now().strftime("%Y-%m-%d %H:%M")
+    rows = ["", "---", f"## Last Scan Results (auto-updated {today})", "",
+            "| Company | ATS Detected | Status |",
+            "|---------|-------------|--------|"]
+
+    status_note = {
+        "scan_ok": "scan_ok — jobs extracted",
+        "no_jobs_found": "scan_ok — 0 relevant jobs",
+        "source_needs_characterization": "needs characterization (JS/dynamic)",
+        "parse_error": "parse error",
+        "no_html_file": "not fetched (no career URL?)",
+    }
+
+    for company, info in sorted(parse_stats.items()):
+        ats = info.get("ats", "unknown")
+        status = info.get("status", "unknown")
+        rows.append(f"| {company} | {ats} | {status_note.get(status, status)} |")
+
+    rows.append("")
+    new_content = content.rstrip("\n") + "\n" + "\n".join(rows)
+
+    if not dry_run:
+        sc_file.write_text(new_content, encoding="utf-8")
+        log.info(f"Updated → docs/source_characterization.md ({len(parse_stats)} companies)")
+    else:
+        log.info(f"[DRY RUN] source_characterization.md not updated")
+
+
 def write_daily_summary(
     companies: list,
     fetch_results: list,
     scored_jobs: list,
     new_count: int,
     dry_run: bool,
+    parse_stats: dict | None = None,
 ):
     today = datetime.now().strftime("%Y-%m-%d %H:%M")
     total = len(companies)
@@ -117,13 +160,28 @@ def write_daily_summary(
             lines.append(f"- [{j.get('fit_score')}/10] **{j['company_name']}** — {j['role_title']}")
         lines.append("")
 
-    companies_no_url = [c["company_name"] for c in companies if not c.get("career_url", "").strip()]
-    if companies_no_url:
-        lines.append("## Action Required — Missing Career URLs")
-        lines.append("Edit `config/target_companies.csv` and add the career_url for:")
-        for name in companies_no_url:
-            lines.append(f"- {name}")
-        lines.append("")
+    if parse_stats:
+        needs_char = {c: v for c, v in parse_stats.items()
+                      if v.get("status") == "source_needs_characterization"}
+        ok = {c: v for c, v in parse_stats.items() if v.get("status") == "scan_ok"}
+        if ok or needs_char:
+            lines.append("## Parse Results")
+            if ok:
+                lines.append(f"- Scanned successfully: {', '.join(sorted(ok))}")
+            if needs_char:
+                lines.append(f"- Needs characterization ({len(needs_char)}): "
+                             + ", ".join(sorted(needs_char)))
+            lines.append("")
+
+    lines.append("## Career Pages — Fallback Checklist")
+    lines.append("_Auto-discovery was attempted for all URLs below._")
+    lines.append("_Review `exports/jobs_for_review.csv` first. Only use this list if a source failed or you want richer detail._")
+    lines.append("")
+    for c in companies:
+        url = c.get("career_url", "").strip()
+        if url:
+            lines.append(f"- [ ] {c['company_name']}: {url}")
+    lines.append("")
 
     lines.append("## Next Steps")
     lines.append("1. Review `exports/jobs_for_review.csv`")
@@ -160,11 +218,13 @@ def run(company_filter: str | None = None, dry_run: bool = False):
     # Step 4: Parse jobs (manual + HTML)
     log.info("--- PARSE ---")
     parsed = parse_jobs.run(dry_run=dry_run)
+    parse_stats = parse_jobs.get_run_stats()
 
     if not parsed:
         log.info("No jobs parsed this run.")
         log.info("Tip: add manual job files to data/raw/manual/ or populate career URLs.")
-        write_daily_summary(companies, fetch_results, [], 0, dry_run)
+        update_source_characterization(parse_stats, dry_run)
+        write_daily_summary(companies, fetch_results, [], 0, dry_run, parse_stats)
         return
 
     # Step 5: Score jobs
@@ -175,9 +235,10 @@ def run(company_filter: str | None = None, dry_run: bool = False):
     log.info("--- EXPORT ---")
     new_count = export_review_csv.run(scored_jobs=scored, dry_run=dry_run)
 
-    # Step 8: Write daily summary
+    # Step 8: Write daily summary + update source characterization
     log.info("--- SUMMARY ---")
-    write_daily_summary(companies, fetch_results, scored, new_count, dry_run)
+    update_source_characterization(parse_stats, dry_run)
+    write_daily_summary(companies, fetch_results, scored, new_count, dry_run, parse_stats)
 
     elapsed = (datetime.now() - start).total_seconds()
     log.info(f"Daily scan complete — {elapsed:.1f}s — {new_count} new jobs added to review")

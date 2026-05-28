@@ -47,5 +47,14 @@ logs/*.log
 # Jupyter
 .ipynb_checkpoints/
 
-# Sensitive exports (keep structure)
-# exports/*.csv  # Uncomment if you want to exclude exports from git
+# Runtime outputs — generated on every scan, not committed
+data/raw/*/
+data/parsed/
+exports/jobs_for_review.csv
+exports/jobs_for_review.md
+exports/daily_summary.md
+data/seen_jobs.csv
+data/rejected_jobs.csv
+
+# Approved job packages are also generated — commit only intentionally
+# data/approved_jobs/
