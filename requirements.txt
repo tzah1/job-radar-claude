@@ -1,0 +1,12 @@
+# Job Radar v1 — minimal dependencies
+#
+# Why each package:
+#   requests       — HTTP fetching of career pages (stdlib urllib lacks cookie/redirect handling needed for career pages)
+#   beautifulsoup4 — HTML parsing for job listing pages (stdlib html.parser has no selector API)
+#   python-dotenv  — Load .env files for optional config overrides (avoids hardcoding paths/tokens)
+#
+# Everything else uses Python standard library (csv, json, logging, pathlib, hashlib, argparse, datetime).
+
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+python-dotenv>=1.0.0
